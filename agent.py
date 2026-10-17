@@ -1,154 +1,244 @@
 import os
+from typing import Optional
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from models import UserProfile
+from models import UserProfile, Product
 from tools import search_products, format_products_for_ai
 
 
 load_dotenv()
 
 
-API_KEY = os.getenv("AI_API_KEY")
-BASE_URL = os.getenv("AI_BASE_URL")
-MODEL = os.getenv("AI_MODEL")
+# =========================================================
+# AI CONFIG
+# =========================================================
+
+AI_API_KEY = os.getenv("AI_API_KEY")
+AI_BASE_URL = os.getenv("AI_BASE_URL")
+AI_MODEL = os.getenv("AI_MODEL")
+
+
+if not AI_API_KEY:
+    raise RuntimeError("AI_API_KEY is not configured.")
+
+if not AI_BASE_URL:
+    raise RuntimeError("AI_BASE_URL is not configured.")
+
+if not AI_MODEL:
+    raise RuntimeError("AI_MODEL is not configured.")
 
 
 client = OpenAI(
-    api_key=API_KEY,
-    base_url=BASE_URL
+    api_key=AI_API_KEY,
+    base_url=AI_BASE_URL
 )
 
 
+# =========================================================
+# SYSTEM PROMPT
+# =========================================================
+
 SYSTEM_PROMPT = """
-تو StyleAI هستی؛ یک دستیار هوشمند استایل و انتخاب لباس برای کاربران فارسی‌زبان.
+تو StyleAI هستی؛ یک استایلیست هوشمند و دستیار خرید لباس برای کاربران ایرانی.
 
 وظایف تو:
-- پیشنهاد استایل بر اساس جنسیت، فرم بدن، قد، وزن و سایز
-- توجه به استایل‌های مورد علاقه کاربر
-- توجه به رنگ‌های مورد علاقه و رنگ‌های نامطلوب
-- پیشنهاد لباس متناسب با موقعیت
-- رعایت بودجه
-- ساخت ست کامل لباس
-- توضیح دلیل مناسب بودن هر پیشنهاد
-- ارائه پیشنهادهای کاربردی و قابل فهم
+
+1. پیشنهاد استایل متناسب با کاربر
+2. توجه به جنسیت، فرم بدن، قد، وزن و سایز در صورت وجود
+3. توجه به سبک مورد علاقه کاربر
+4. توجه به رنگ‌های مورد علاقه و رنگ‌هایی که کاربر نمی‌پسندد
+5. توجه به مناسبت، فصل و موقعیت استفاده
+6. توجه به بودجه کاربر
+7. کمک به انتخاب و ترکیب لباس‌ها
+8. ادامه دادن طبیعی مکالمه و استفاده از اطلاعات پیام‌های قبلی
 
 قوانین مهم:
 
-1. همیشه به زبان فارسی پاسخ بده مگر کاربر صریحاً زبان دیگری بخواهد.
-
-2. پاسخ‌ها دوستانه، کاربردی و نسبتاً کوتاه باشند.
-
-3. اطلاعات پروفایل کاربر را در پیشنهادها در نظر بگیر.
-
-4. درباره فرم بدن محترمانه صحبت کن و از قضاوت منفی درباره ظاهر کاربر خودداری کن.
-
-5. اگر اطلاعات کافی وجود ندارد، با اطلاعات موجود بهترین پیشنهاد ممکن را ارائه کن.
-
-6. هیچ قیمت واقعی، تخفیف، موجودی، نام فروشگاه یا لینک خریدی را از خودت نساز.
-
-7. فقط اطلاعات محصولی که ابزار جستجوی محصول در اختیار تو قرار داده می‌تواند به عنوان محصول واقعی معرفی شود.
-
-8. اگر محصول واقعی پیدا نشده، می‌توانی نوع لباس پیشنهاد بدهی؛ مثلاً:
-   «کت تک کرم با برش راسته»
-اما نباید برای آن فروشگاه، لینک یا قیمت واقعی اختراع کنی.
-
-9. وقتی کاربر ست لباس می‌خواهد، در صورت امکان این بخش‌ها را بررسی کن:
-- بالاتنه
-- پایین‌تنه
-- کفش
-- لایه بیرونی در صورت نیاز
-- اکسسوری
-
-10. هنگام پیشنهاد رنگ، هماهنگی رنگ‌ها و رنگ‌های مورد علاقه/نامطلوب کاربر را در نظر بگیر.
-
-11. اگر کاربر بودجه مشخص کرده، پیشنهادها باید با آن سازگار باشند.
-
-هدف تو کمک به کاربر برای داشتن استایل مناسب، هماهنگ و قابل اجراست.
+- همیشه فارسی پاسخ بده.
+- پاسخ‌ها طبیعی، دوستانه و کاربردی باشند.
+- اگر اطلاعات کافی نیست، فقط اطلاعات ضروری را از کاربر بپرس.
+- از اطلاعات موجود در پروفایل و تاریخچه مکالمه استفاده کن.
+- اگر کاربر گفت «همون»، «این»، «قبلی»، «برای اون»، «این ست» و موارد مشابه،
+  منظور را با توجه به تاریخچه مکالمه تفسیر کن.
+- قیمت، لینک، موجودی یا نام فروشگاه را هرگز حدس نزن.
+- اگر محصول واقعی از ابزار جستجو دریافت نشده است، ادعا نکن که محصول واقعی پیدا شده.
+- تشخیص پزشکی یا ادعای تخصص پزشکی انجام نده.
+- پیشنهادها را کوتاه، واضح و قابل اجرا ارائه کن.
 """
 
 
-def profile_to_text(profile: UserProfile | None) -> str:
-    if profile is None:
-        return "پروفایل کاربر ارسال نشده است."
+# =========================================================
+# PROFILE
+# =========================================================
 
-    return f"""
-جنسیت: {profile.gender}
-فرم بدن: {profile.body_shape}
+def build_profile_context(
+    profile: Optional[UserProfile]
+) -> str:
 
-قد: {profile.height_cm}
-وزن: {profile.weight_kg}
-سایز لباس: {profile.size}
+    if not profile:
+        return "اطلاعات پروفایل کاربر در دسترس نیست."
 
-دور سینه: {profile.chest}
-دور کمر: {profile.waist}
-دور باسن: {profile.hip}
-عرض شانه: {profile.shoulder}
+    profile_data = []
 
-استایل‌های مورد علاقه:
-{", ".join(profile.styles) if profile.styles else "مشخص نشده"}
+    if profile.gender:
+        profile_data.append(
+            f"جنسیت: {profile.gender}"
+        )
 
-رنگ‌های مورد علاقه:
-{", ".join(profile.liked_colors) if profile.liked_colors else "مشخص نشده"}
+    if profile.body_shape:
+        profile_data.append(
+            f"فرم بدن: {profile.body_shape}"
+        )
 
-رنگ‌های نامطلوب:
-{", ".join(profile.disliked_colors) if profile.disliked_colors else "مشخص نشده"}
+    if profile.height_cm is not None:
+        profile_data.append(
+            f"قد: {profile.height_cm} سانتی‌متر"
+        )
 
-موقعیت‌ها:
-{", ".join(profile.occasions) if profile.occasions else "مشخص نشده"}
+    if profile.weight_kg is not None:
+        profile_data.append(
+            f"وزن: {profile.weight_kg} کیلوگرم"
+        )
 
-نوع بودجه:
-{profile.budget}
+    if profile.size:
+        profile_data.append(
+            f"سایز: {profile.size}"
+        )
 
-حداقل قیمت:
-{profile.min_price}
+    if profile.chest is not None:
+        profile_data.append(
+            f"دور سینه: {profile.chest}"
+        )
 
-حداکثر قیمت:
-{profile.max_price}
-""".strip()
+    if profile.waist is not None:
+        profile_data.append(
+            f"دور کمر: {profile.waist}"
+        )
 
+    if profile.hip is not None:
+        profile_data.append(
+            f"دور باسن: {profile.hip}"
+        )
+
+    if profile.shoulder is not None:
+        profile_data.append(
+            f"عرض شانه: {profile.shoulder}"
+        )
+
+    if profile.styles:
+        profile_data.append(
+            f"سبک‌های مورد علاقه: {', '.join(profile.styles)}"
+        )
+
+    if profile.liked_colors:
+        profile_data.append(
+            f"رنگ‌های مورد علاقه: {', '.join(profile.liked_colors)}"
+        )
+
+    if profile.disliked_colors:
+        profile_data.append(
+            f"رنگ‌های نامطلوب: {', '.join(profile.disliked_colors)}"
+        )
+
+    if profile.occasions:
+        profile_data.append(
+            f"مناسبت‌ها: {', '.join(profile.occasions)}"
+        )
+
+    if profile.budget:
+        profile_data.append(
+            f"بودجه: {profile.budget}"
+        )
+
+    if profile.min_price is not None:
+        profile_data.append(
+            f"حداقل قیمت: {profile.min_price}"
+        )
+
+    if profile.max_price is not None:
+        profile_data.append(
+            f"حداکثر قیمت: {profile.max_price}"
+        )
+
+    if not profile_data:
+        return "اطلاعات پروفایل کاربر هنوز تکمیل نشده است."
+
+    return "\n".join(profile_data)
+
+
+# =========================================================
+# PRODUCT SEARCH DECISION
+# =========================================================
 
 def should_search_products(message: str) -> bool:
+
     keywords = [
-        "خرید",
-        "محصول",
-        "فروشگاه",
-        "قیمت",
-        "لینک",
-        "مانتو",
-        "شلوار",
+        "لباس",
         "پیراهن",
+        "شلوار",
         "کت",
+        "مانتو",
         "کفش",
         "هودی",
         "تیشرت",
-        "تی شرت",
-        "لباس",
+        "تی‌شرت",
+        "پالتو",
+        "خرید",
+        "فروشگاه",
+        "محصول",
+        "قیمت",
+        "ارزان",
+        "اقتصادی",
+        "خریداری",
+        "لینک",
+        "سایز"
     ]
 
-    message = message.lower()
+    message_lower = message.lower()
 
-    return any(keyword in message for keyword in keywords)
+    return any(
+        keyword in message_lower
+        for keyword in keywords
+    )
 
+
+# =========================================================
+# AGENT
+# =========================================================
 
 def run_agent(
     message: str,
-    profile: UserProfile | None = None
+    profile: UserProfile | None = None,
+    conversation=None
 ) -> tuple[str, list]:
 
-    if not API_KEY:
-        raise RuntimeError(
-            "AI_API_KEY داخل فایل .env تنظیم نشده است."
-        )
+    conversation = conversation or []
 
-    product_text = "جستجوی محصول برای این درخواست انجام نشده است."
-    products = []
+    profile_context = build_profile_context(
+        profile
+    )
+
+    products: list[Product] = []
+
+    # -----------------------------------------------------
+    # Product search
+    # -----------------------------------------------------
 
     if should_search_products(message):
 
-        min_price = profile.min_price if profile else None
-        max_price = profile.max_price if profile else None
+        min_price = (
+            profile.min_price
+            if profile
+            else None
+        )
+
+        max_price = (
+            profile.max_price
+            if profile
+            else None
+        )
 
         products = search_products(
             query=message,
@@ -156,40 +246,86 @@ def run_agent(
             max_price=max_price
         )
 
-        product_text = format_products_for_ai(products)
+    # -----------------------------------------------------
+    # Build messages
+    # -----------------------------------------------------
 
-    user_context = f"""
-پروفایل کاربر:
+    messages = [
+        {
+            "role": "system",
+            "content": SYSTEM_PROMPT
+        },
+        {
+            "role": "system",
+            "content": (
+                "اطلاعات فعلی پروفایل کاربر:\n\n"
+                + profile_context
+            )
+        }
+    ]
 
-{profile_to_text(profile)}
+    # حافظه کوتاه‌مدت
+    if conversation:
+        messages.extend(
+            conversation
+        )
 
-درخواست کاربر:
+    # اطلاعات واقعی محصولات
+    if products:
 
-{message}
+        product_context = (
+            format_products_for_ai(
+                products
+            )
+        )
 
-اطلاعات محصولات واقعی:
-
-{product_text}
-"""
-
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
+        messages.append(
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": user_context
+                "content": (
+                    "محصولات واقعی دریافت‌شده از ابزار جستجو:\n\n"
+                    + product_context
+                )
             }
-        ],
+        )
+
+    else:
+
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "در حال حاضر محصول واقعی از فروشگاه "
+                    "دریافت نشده است. "
+                    "اطلاعات محصول، قیمت، لینک یا فروشگاه "
+                    "اختراع نکن."
+                )
+            }
+        )
+
+    # پیام جدید کاربر
+    messages.append(
+        {
+            "role": "user",
+            "content": message
+        }
+    )
+
+    # -----------------------------------------------------
+    # AI Request
+    # -----------------------------------------------------
+
+    response = client.chat.completions.create(
+        model=AI_MODEL,
+        messages=messages,
         temperature=0.7
     )
 
     answer = response.choices[0].message.content
 
     if not answer:
-        answer = "متأسفانه نتوانستم پاسخ مناسبی تولید کنم."
+        answer = (
+            "متأسفانه نتونستم پاسخ مناسبی آماده کنم."
+        )
 
     return answer, products

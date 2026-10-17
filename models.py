@@ -28,7 +28,7 @@ class UserProfile(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     profile: Optional[UserProfile] = None
-
+    session_id: Optional[str] = None
 
 class Product(BaseModel):
     id: str
