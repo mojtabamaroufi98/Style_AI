@@ -203,6 +203,49 @@ def is_relevant_product(
     for keyword in forbidden_keywords:
 
         if keyword in search_text:
+
+            # اگر خود query صراحتاً زنانه باشد،
+            # محصول زنانه نباید به خاطر این فیلتر حذف شود.
+            if (
+                keyword == "زنانه"
+                and (
+                    "زنانه" in query_text
+                    or "زن" in query_text
+                )
+            ):
+                continue
+
+            print(
+                f"[PRODUCT FILTER] rejected={title} "
+                f"| reason={keyword}"
+            )
+
+            return False
+
+    # -------------------------------------------------
+    # حذف محصولات کودک و نوزاد
+    #
+    # این فیلتر مستقل از query است.
+    # چون queryهایی مثل «تیشرت مینیمال»
+    # ممکن است محصول نوزادی هم برگردانند.
+    # -------------------------------------------------
+
+    child_keywords = [
+        "نوزادی",
+        "نوزاد",
+        "بچگانه",
+        "بچه‌گانه",
+        "بچه گانه",
+        "کودک",
+        "کودکان",
+        "دخترانه",
+        "پسرانه",
+    ]
+
+    for keyword in child_keywords:
+
+        if keyword in search_text:
+
             print(
                 f"[PRODUCT FILTER] rejected={title} "
                 f"| reason={keyword}"
@@ -220,31 +263,13 @@ def is_relevant_product(
     ):
 
         if "زنانه" in search_text:
+
             print(
                 f"[PRODUCT FILTER] rejected={title} "
                 f"| reason=زنانه"
             )
 
             return False
-
-        child_keywords = [
-            "بچگانه",
-            "کودک",
-            "نوزاد",
-            "دخترانه",
-            "پسرانه",
-        ]
-
-        for keyword in child_keywords:
-
-            if keyword in search_text:
-
-                print(
-                    f"[PRODUCT FILTER] rejected={title} "
-                    f"| reason={keyword}"
-                )
-
-                return False
 
     # -------------------------------------------------
     # اگر جستجو زنانه است
@@ -256,6 +281,7 @@ def is_relevant_product(
     ):
 
         if "مردانه" in search_text:
+
             print(
                 f"[PRODUCT FILTER] rejected={title} "
                 f"| reason=مردانه"
