@@ -519,6 +519,22 @@ def search_products(
                 product_url = product_path
 
             # -------------------------------------------------
+            # Product image
+            # -------------------------------------------------
+
+            images_data = raw.get(
+                "images"
+            ) or {}
+
+            main_image = images_data.get(
+                "main"
+            ) or {}
+
+            image_url = main_image.get(
+                "url"
+            )
+
+            # -------------------------------------------------
             # Product
             # -------------------------------------------------
 
@@ -545,6 +561,8 @@ def search_products(
                     ),
 
                     url=product_url,
+
+                    image_url=image_url,
 
                     sizes=sorted(
                         sizes

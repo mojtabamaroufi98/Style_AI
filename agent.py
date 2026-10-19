@@ -2742,6 +2742,8 @@ def run_agent(
         answer,
         selected_products,
     )
+
+
 def product_matches_requested_category(
     product: Product,
     requested_category: str,
@@ -2816,7 +2818,6 @@ def product_matches_requested_category(
     )
 
 
-
 def product_has_requested_color(
     product: Product,
     requested_colors: list[str],
@@ -2858,7 +2859,6 @@ def product_has_requested_color(
                 return True
 
     return False
-
 
 
 def product_matches_gender(
@@ -2919,6 +2919,8 @@ def product_matches_gender(
             )
 
     return True
+
+
 def filter_products_by_request(
     products: list[Product],
     intent: RequestIntent,
