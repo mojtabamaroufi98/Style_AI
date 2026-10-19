@@ -2502,6 +2502,13 @@ def run_agent(
             )
         )
 
+        products = filter_products_by_request(
+            products=products,
+            intent=intent,
+            profile=profile,
+            message=message,
+        )
+
     # =====================================================
     # No products
     # =====================================================
@@ -2735,3 +2742,263 @@ def run_agent(
         answer,
         selected_products,
     )
+def product_matches_requested_category(
+    product: Product,
+    requested_category: str,
+) -> bool:
+
+    text = normalize_text(
+        f"{product.name} "
+        f"{product.note or ''}"
+    )
+
+    category_aliases = {
+        "تیشرت": [
+            "تیشرت",
+            "تی شرت",
+            "تی‌شرت",
+            "t-shirt",
+            "tshirt",
+        ],
+        "پولوشرت": [
+            "پولوشرت",
+            "پولو شرت",
+            "polo",
+        ],
+        "پیراهن": [
+            "پیراهن",
+            "shirt",
+        ],
+        "شلوار": [
+            "شلوار",
+            "pants",
+            "trousers",
+        ],
+        "هودی": [
+            "هودی",
+            "hoodie",
+        ],
+        "کفش": [
+            "کفش",
+            "کتانی",
+            "اسنیکر",
+            "sneaker",
+        ],
+        "کت": [
+            "کت",
+            "blazer",
+        ],
+        "مانتو": [
+            "مانتو",
+        ],
+        "دامن": [
+            "دامن",
+            "skirt",
+        ],
+        "شورت": [
+            "شورت",
+            "shorts",
+        ],
+        "کاپشن": [
+            "کاپشن",
+            "jacket",
+        ],
+    }
+
+    aliases = category_aliases.get(
+        requested_category,
+        [requested_category],
+    )
+
+    return any(
+        normalize_text(alias) in text
+        for alias in aliases
+    )
+
+
+
+def product_has_requested_color(
+    product: Product,
+    requested_colors: list[str],
+) -> bool:
+
+    if not requested_colors:
+        return True
+
+    product_colors = [
+        normalize_text(
+            color
+        )
+        for color in product.colors
+    ]
+
+    for requested_color in requested_colors:
+
+        canonical = normalize_text(
+            requested_color
+        )
+
+        aliases = COLOR_TERMS.get(
+            requested_color,
+            [requested_color],
+        )
+
+        for product_color in product_colors:
+
+            if canonical == product_color:
+                return True
+
+            if any(
+                normalize_text(alias)
+                in product_color
+                or product_color
+                in normalize_text(alias)
+                for alias in aliases
+            ):
+                return True
+
+    return False
+
+
+
+def product_matches_gender(
+    product: Product,
+    profile: Optional[UserProfile],
+    message: str,
+) -> bool:
+
+    text = normalize_text(
+        f"{product.name} "
+        f"{product.note or ''}"
+    )
+
+    request_text = normalize_text(
+        message
+    )
+
+    if (
+        "زنانه" in request_text
+        or "زن" in request_text
+    ):
+        return (
+            "زنانه" in text
+            and "مردانه" not in text
+        )
+
+    if (
+        "مردانه" in request_text
+        or "مرد" in request_text
+    ):
+        return (
+            "مردانه" in text
+            and "زنانه" not in text
+        )
+
+    if profile and profile.gender:
+
+        gender = normalize_text(
+            str(profile.gender)
+        )
+
+        if (
+            "مرد" in gender
+            or "male" in gender
+        ):
+            return (
+                "مردانه" in text
+                and "زنانه" not in text
+            )
+
+        if (
+            "زن" in gender
+            or "female" in gender
+        ):
+            return (
+                "زنانه" in text
+                and "مردانه" not in text
+            )
+
+    return True
+def filter_products_by_request(
+    products: list[Product],
+    intent: RequestIntent,
+    profile: Optional[UserProfile],
+    message: str,
+) -> list[Product]:
+
+    filtered = []
+
+    for product_item in products:
+
+        # ---------------------------------------------
+        # Category
+        # ---------------------------------------------
+
+        if intent.categories:
+
+            category_match = any(
+                product_matches_requested_category(
+                    product_item,
+                    category,
+                )
+                for category in intent.categories
+            )
+
+            if not category_match:
+
+                print(
+                    f"[STRICT FILTER] rejected="
+                    f"{product_item.name} "
+                    f"| reason=category"
+                )
+
+                continue
+
+        # ---------------------------------------------
+        # Color
+        # ---------------------------------------------
+
+        if intent.colors:
+
+            if not product_has_requested_color(
+                product_item,
+                intent.colors,
+            ):
+
+                print(
+                    f"[STRICT FILTER] rejected="
+                    f"{product_item.name} "
+                    f"| reason=color"
+                )
+
+                continue
+
+        # ---------------------------------------------
+        # Gender
+        # ---------------------------------------------
+
+        if not product_matches_gender(
+            product_item,
+            profile,
+            message,
+        ):
+
+            print(
+                f"[STRICT FILTER] rejected="
+                f"{product_item.name} "
+                f"| reason=gender"
+            )
+
+            continue
+
+        filtered.append(
+            product_item
+        )
+
+    print(
+        f"[STRICT FILTER] "
+        f"before={len(products)} "
+        f"after={len(filtered)}"
+    )
+
+    return filtered
