@@ -24,6 +24,10 @@ class UserProfile(BaseModel):
     min_price: Optional[int] = None
     max_price: Optional[int] = None
 
+    # Legacy budget fields — برای سازگاری با تست‌ها و نسخه‌های قبلی
+    budget_type: Optional[str] = None
+    budget_amount: Optional[int] = None
+
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
